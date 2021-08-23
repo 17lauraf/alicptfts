@@ -72,12 +72,14 @@ class shell(Cmd):
             try:
                 if (params[0].fts is None):  ## params[0] = self
                     print('***** FTS is not yet initialized!',file=sys.stderr)
-                    return lambda *params, **kargs: None
+                    #return lambda *params, **kargs: None
+                    # If we return, then the cmd loop exits
                 else:  ## Connect
                     return func(*params,**kargs)
             except:
                 ''' len(params)==0 '''
-                raise Exception('Syntax error: cannot check Initialization')
+                print('No parameters entered')
+                #raise Exception('Syntax error: cannot check Initialization')
 
         return wrapper
 
@@ -208,7 +210,7 @@ class shell(Cmd):
             try:
                 self.fts.initialize(paramList[0],paramList[1],paramList[2])
                 print('Status: Finish FTS initialization')
-            except typeError:
+            except TypeError:
                 print('IP(str) username(str) password(str)')
 
 
