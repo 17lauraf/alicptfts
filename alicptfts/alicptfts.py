@@ -471,6 +471,7 @@ class AlicptFTS:
             pass
 
     def status(self):
+        print('Acquiring Status...')
         try:
             self.check_state('status')
         except Exception:

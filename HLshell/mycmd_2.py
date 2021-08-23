@@ -261,7 +261,6 @@ class shell(Cmd):
             print('*****FTS not yet initialized!')
             return
         '''
-
         self.fts.status()
 
     @parser()

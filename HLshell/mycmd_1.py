@@ -207,7 +207,7 @@ class shell(Cmd):
             try:
                 self.fts.initialize(paramList[0],paramList[1],paramList[2])
                 print('Status: Finish FTS initialization')
-            except typeError:
+            except TypeError:
                 print('IP(str) username(str) password(str)')
 
 
