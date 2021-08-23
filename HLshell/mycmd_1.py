@@ -346,33 +346,40 @@ class clientShell(shell):
 
         if (len(paramList) > 2 or len(paramList)==0):
             print('Require 1 or 2 parameters')
+            return 
+        self.hostIP = paramList[0]
+        if (len(paramList)==2 and paramList[1]>0):
+            self.port = paramList[1]
         else:
-            self.hostIP = paramList[0]
-            if (len(paramList)==2 and paramList[1]>0):
-                self.port = paramList[1]
-            else:
-                self.port = self._DEFAULTPORT()
-                if (len(paramList)==2): print('Second parameters (port) should be a number.\nUse default setting, port ', self._DEFAULTPORT())
-            try:
-                self.socket.connect((self.hostIP,self.port))
-            except socket.error as msg:
-                print(msg)
-
-            self.socket.sendall(socket.gethostname().encode())
+            self.port = self._DEFAULTPORT()
+            if (len(paramList)==2): print('Second parameters (port) should be a number.\nUse default setting, port ', self._DEFAULTPORT())
+        try:
+            self.socket.connect((self.hostIP,self.port))
+        except socket.error as msg:
+            print(msg)
+            return 
+        except TypeError:
+            print('Please enter a proper IP')
+            return 
+        self.socket.sendall(socket.gethostname().encode())
+        try:
             cwd = self.socket.recv(1024)
             print("STATUS: connect to machine: ", cwd.decode())
             self.prompt = 'FTScmd> '
+        except ConnectionAbortedError:
+            print('Connection not ready')
+
+            
 
 
     def do_wait(self,par):
         '''press CTRL+D to stop receiving'''
         print('Waiting for the command...')
-        while True:
-            command = self.socket.recv(self.BUFFER_SIZE).decode()
-            out,err = self.run_command(self.onecmd,command)
-            codeOut = pickle.dumps([out,err])  ## encode the output list
-            self.socket.send(codeOut)
-
+        #while True:
+        command = self.socket.recv(self.BUFFER_SIZE).decode()
+        out,err = self.run_command(self.onecmd,command)
+        codeOut = pickle.dumps([out,err])  ## encode the output list
+        self.socket.send(codeOut)
 
 ## GCS
 class serverShell(shell):
