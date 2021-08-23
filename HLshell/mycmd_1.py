@@ -455,8 +455,8 @@ if __name__ == '__main__':
     print("Press ENTER to run locally")
 
     while True:
-        #mode = input("Mode: ")
-        mode = '1'
+        mode = input("Mode: ")
+        #mode = '1'
         if (mode.isspace() or not mode):
             mode = '0'
             break

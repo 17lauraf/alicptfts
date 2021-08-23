@@ -109,7 +109,6 @@ class shell(Cmd):
             return self.do_exit()
         else:
             print("Command Not Found:", inp.split(' ')[0], file=sys.stderr)
-            
 
     def run_cmdbase(self,func,line):
         re = self.onecmd(line)
@@ -120,7 +119,6 @@ class shell(Cmd):
         temp_err = StringIO()
         sys.stdout = temp_out
         sys.stderr = temp_err
-
         try:
             func(line)
         except:
@@ -266,6 +264,7 @@ class shell(Cmd):
             print('*****FTS not yet initialized!')
             return
         '''
+
         self.fts.status()
 
     @parser()
@@ -382,7 +381,6 @@ class clientShell(shell):
         codeOut = pickle.dumps([out,err])  ## encode the output list
         self.socket.send(codeOut)
 
-
 ## GCS
 class serverShell(shell):
     def __init__(self):
@@ -457,8 +455,8 @@ if __name__ == '__main__':
     print("Press ENTER to run locally")
 
     while True:
-        #mode = input("Mode: ")
-        mode = '2'
+        mode = input("Mode: ")
+        #mode = '1'
         if (mode.isspace() or not mode):
             mode = '0'
             break
@@ -472,4 +470,5 @@ if __name__ == '__main__':
     if (int(mode)==1): serverShell().cmdloop()
     elif (int(mode)==2): clientShell().cmdloop()
     else: shell().cmdloop()
+
 
