@@ -414,7 +414,7 @@ class serverShell(shell):
 
         except socket.error as e:
             print("Fail to bind", e,file=sys.stderr)
-            return -1
+            return 
 
         # recieve message from client
         self.clientSocket, client_address = self.socket.accept()
@@ -428,10 +428,19 @@ class serverShell(shell):
 
 
     def do_send(self,par):
+        if(len(par) < 1):
+            print("Nothing is sent")
+            return 
+        print('Sending params: ' + str(par))
         try:
             self.clientSocket.send(par.encode())
-        except:
+        except AttributeError as e:
             print('Error when sending command', par,file=sys.stderr)
+            print(e)
+            return 
+        except ConnectionResetError:
+            print('Connection reset')
+            return 
 
         codeOut = self.clientSocket.recv(self.BUFFER_SIZE)
         print(codeOut)
