@@ -375,11 +375,12 @@ class clientShell(shell):
     def do_wait(self,par):
         '''press CTRL+D to stop receiving'''
         print('Waiting for the command...')
-        #while True:
-        command = self.socket.recv(self.BUFFER_SIZE).decode()
-        out,err = self.run_command(self.onecmd,command)
-        codeOut = pickle.dumps([out,err])  ## encode the output list
-        self.socket.send(codeOut)
+        while True:
+            command = self.socket.recv(self.BUFFER_SIZE).decode()
+            print('Command received: ' + str(command))
+            out,err = self.run_command(self.onecmd,command)
+            codeOut = pickle.dumps([out,err])  ## encode the output list
+            self.socket.send(codeOut)
 
 ## GCS
 class serverShell(shell):
