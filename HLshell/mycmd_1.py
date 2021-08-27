@@ -383,8 +383,10 @@ class clientShell(shell):
         out, err = pickle.loads(cmd_received)
         if (out): print(out)
         if (err): print_error(err)
-        
-        codeOut = self.socket.recv(shell.BUFFER_SIZE)
+
+        self.socket.settimeout(None)
+        codeOut = self.socket.recv(shell.BUFFER_SIZE) ## might be a long command
+        self.socket.settimeout(shell.DEFAULT_TIMEOUT)
         out, err = pickle.loads(codeOut)  ## decode output list
         if (out): print(out)
         if (err): print_error(err)
@@ -452,7 +454,13 @@ class serverShell(shell):
         self.prompt = 'FTScmd> '
 
     def receive_command(self, timeout, EXIT='q'):
-        self.clientSocket.settimeout(timeout)
+        try:
+            self.clientSocket.settimeout(timeout)
+        except ConnectionAbortedError:
+            print_error('Connection lost. Please reconnect.')
+            self.waiting_for_cmd = False
+            return 
+
         while(self.waiting_for_cmd):
             try:
                 command = self.clientSocket.recv(shell.BUFFER_SIZE).decode()
@@ -486,6 +494,7 @@ class serverShell(shell):
         
         print('Press ' + str(EXIT) +  ' to exit loop')
         print('Waiting for the command...')
+        
         while (self.waiting_for_cmd):
             if(not wait_thread.is_alive()):
                 wait_thread.start()
@@ -493,6 +502,7 @@ class serverShell(shell):
                 pressed_key = msvcrt.getwch()
             if(pressed_key == EXIT):
                 self.waiting_for_cmd = False
+        
         print('Done receiving commands')
 
     def do_close(self, par):
