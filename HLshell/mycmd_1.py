@@ -100,6 +100,7 @@ class shell(Cmd):
 
     ## use for test
     def do_print(self,par):
+        '''print any argument you want'''
         print('"print" command does nothing\narg: ',par)
 
     def _DEFAULTPORT(self):
@@ -358,8 +359,9 @@ class clientShell(shell):
             print_error('Connection not reset, try again')
     
     def do_send(self,par):
+        '''send [any other command to the server]'''
         if(len(par) < 1):
-            print_error("Nothing is sent")
+            print_error("No command sent")
             return 
         print('Sending params: ' + str(par))
         try:
