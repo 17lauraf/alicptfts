@@ -448,7 +448,7 @@ class serverShell(shell):
         self.clientSocket.send(socket.gethostname().encode())
         self.prompt = 'FTScmd> '
 
-    def receive_command(self, timeout, exit='q'):
+    def receive_command(self, timeout, EXIT='q'):
         self.clientSocket.settimeout(timeout)
         while(self.waiting_for_cmd):
             try:
