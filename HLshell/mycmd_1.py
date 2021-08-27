@@ -82,8 +82,9 @@ class shell(Cmd):
                     print_error('Did you mean to send the command instead?')
                 else:  ## Connect
                     return func(*params,**kargs)
-            except:
+            except Exception as e:
                 ''' len(params)==0 '''
+                print(e)
                 print_error('No parameters entered')
 
         return wrapper

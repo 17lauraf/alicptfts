@@ -549,7 +549,7 @@ class NewportXPS:
             max_jerktime = jt1_cur
         self._xps.PositionerSGammaParametersSet(self._sid, stage, velo, accl,
                                                 min_jerktime, max_jerktime)
-        return velo, accel
+        return velo, accl
 
     @withConnectedXPS
     def abort_group(self, group=None):
