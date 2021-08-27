@@ -374,7 +374,12 @@ class clientShell(shell):
             print_error('Connection reset')
             return 
 
-        codeOut = self.socket.recv(shell.BUFFER_SIZE)
+        try:
+            codeOut = self.socket.recv(shell.BUFFER_SIZE)
+        except socket.timeout:
+            print_error('Connection timed out')
+            print_error('Is the server receiving commands?')
+            return 
         print(codeOut)
         out, err = pickle.loads(codeOut)  ## decode output list
         if (out): print(out,end='')
