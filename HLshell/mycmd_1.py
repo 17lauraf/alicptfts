@@ -380,7 +380,10 @@ class clientShell(shell):
             print_error('Connection timed out')
             print_error('Is the server receiving commands?')
             return 
-        print(cmd_received)
+        out, err = pickle.loads(cmd_received)
+        if (out): print(out)
+        if (err): print_error(err)
+        
         codeOut = self.socket.recv(shell.BUFFER_SIZE)
         out, err = pickle.loads(codeOut)  ## decode output list
         if (out): print(out)
@@ -474,8 +477,8 @@ class serverShell(shell):
         try:
             refresh = float(par)
         except ValueError:
-            print_error('Refresh rate must be a float')
-            return 
+            print_error('Refresh rate must be a float, using default refresh time')
+            
 
         pressed_key = ''
         self.waiting_for_cmd = True 
