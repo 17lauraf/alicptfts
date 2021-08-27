@@ -492,8 +492,8 @@ class serverShell(shell):
         self.waiting_for_cmd = True 
         wait_thread = threading.Thread(target=self.receive_command, args=[refresh, EXIT])
         
-        print('Press ' + str(EXIT) +  ' to exit loop')
-        print('Waiting for the command...')
+        print('Press ' + str(EXIT) +  ' to stop receiving commands')
+        print('Waiting for command from client...')
         
         while (self.waiting_for_cmd):
             if(not wait_thread.is_alive()):
