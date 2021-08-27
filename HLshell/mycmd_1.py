@@ -6,32 +6,19 @@ import pickle
 import time
 sys.path.append(r'../alicptfts')
 sys.path.append(r'./alicptfts')
-#sys.path.append(r'../../alicpt_workspace/alicptfts')
-#sys.path.append(r'../alicpt_workspace/alicptfts')
-from alicptfts import AlicptFTS
+
 
 from cmd import Cmd
 from re import match
-import sys, os
 import socket
 from io import StringIO
 from functools import wraps
 
 import msvcrt
-import _thread
 import threading
 
-def raw_input_with_timeout(prompt = 'Press q then enter to exit', timeout=1):
-    print(prompt)    
-    timer = threading.Timer(timeout, _thread.interrupt_main)
-    astring = None
-    try:
-        timer.start()
-        astring = input(prompt)
-    except KeyboardInterrupt:
-        pass
-    timer.cancel()
-    return astring
+from alicptfts import AlicptFTS
+
 
 def toNum(x):
     try:
@@ -63,7 +50,8 @@ def parser(convertNum=True):
     return parser_base
 
 class shell(Cmd):
-    DEFAULT_TIMEOUT = 60
+    DEFAULT_TIMEOUT = 30
+    BUFFER_SIZE = 1024 * 128
     def __init__(self):
         ## Cmd
         Cmd.__init__(self)
@@ -76,7 +64,6 @@ class shell(Cmd):
         self.socket = socket.socket()
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.settimeout(shell.DEFAULT_TIMEOUT)
-        self.BUFFER_SIZE = 1024 * 128
 
         ## fts
         self.fts = None
@@ -89,14 +76,11 @@ class shell(Cmd):
             try:
                 if (params[0].fts is None):  ## params[0] = self
                     print('***** FTS is not yet initialized!',file=sys.stderr)
-                    #return lambda *params, **kargs: None
-                    # If we return, then the cmd loop exits
                 else:  ## Connect
                     return func(*params,**kargs)
             except:
                 ''' len(params)==0 '''
                 print('No parameters entered')
-                #raise Exception('Syntax error: cannot check Initialization')
 
         return wrapper
 
@@ -105,6 +89,10 @@ class shell(Cmd):
         print('self ',self,params)
         for i in params:
             print(type(i))
+
+    # do nothing if command is empty
+    def emptyline(self):
+        pass 
 
     ## use for test
     def do_print(self,par):
@@ -119,10 +107,10 @@ class shell(Cmd):
         return True
 
     def help_exit(self):
-        print('type q or qqq to leave')
+        print('type exit or qqq to leave')
 
     def default(self, inp):
-        if inp == 'q' or bool(match(inp,'qqq+')):
+        if inp == 'exit' or inp == 'qqq':
             return self.do_exit(None)
         else:
             print("Command Not Found:", inp.split(' ')[0], file=sys.stderr)
@@ -160,15 +148,9 @@ class shell(Cmd):
         PR and PL are moved with FTSconfig, and ML is moved with FTSscan
         '''
 
-        '''
-        if(self.fts is None):
-            print('*****FTS not yet initialized!')
-            return 
-        '''
-
         if (len(paramList)!=3):
-            print('*****Require 3 parameters')
-            print('*****FTSsettings stagename velocity acceleration')
+            print('***** Require 3 parameters')
+            print('***** FTSsettings stagename velocity acceleration')
             return 
 
         MAX_VEL = AlicptFTS.MAX_VEL
@@ -189,7 +171,7 @@ class shell(Cmd):
             stagename = 'MovingLinear'
         
         else:
-            print('*****Requires stagename to be either PL, PR, or ML ' +
+            print('***** Requires stagename to be either PL, PR, or ML ' +
                 '(pointing linear, pointing rotary, or moving linear)')
             return 
 
@@ -197,15 +179,15 @@ class shell(Cmd):
             velocity = float(paramList[1])
             acceleration = float(paramList[2])
         except ValueError:
-            print('*****Velocity and acceleration must be floats')
+            print('***** Velocity and acceleration must be floats')
             return
 
         if (velocity < min_vel or velocity > MAX_VEL):
-            print('*****Velocity not in allowed range')
+            print('***** Velocity not in allowed range')
             return 
 
         if (acceleration < min_accel or acceleration > MAX_ACC):
-            print('*****Acceleration not in allowed range')
+            print('***** Acceleration not in allowed range')
             return 
 
         self.fts.set_motion_params(stagename, [velocity, acceleration])
@@ -220,8 +202,8 @@ class shell(Cmd):
         if (not self.fts): self.fts = AlicptFTS()
 
         if (len(paramList)!=3):
-            print('*****Require 3 parameters')
-            print('*****FTSinit IP username password')
+            print('***** Require 3 parameters')
+            print('***** FTSinit IP username password')
         else:
             try:
                 self.fts.initialize(paramList[0],paramList[1],paramList[2])
@@ -232,8 +214,6 @@ class shell(Cmd):
                 print('Connection failed')
 
 
-
-
     @parser()
     @_checkInit
     def do_FTSconfig(self,*paramList):
@@ -242,17 +222,9 @@ class shell(Cmd):
         Position is between 0 and 500. Moves the PL (pointing linear) to desired location.
         Angle is in degrees. No range limit. Rotates the PR (pointing rotary) to desired angle.
         '''
-
-        '''
-        if(self.fts is None):
-            print('*****FTS not yet initialized!')
-            return
-        '''
-
- 
         if (len(paramList) != 2):
-            print('*****Require 2 parameters')
-            print('*****FTSconfig pos angle ')
+            print('***** Require 2 parameters')
+            print('***** FTSconfig pos angle ')
             return 
 
         min_pos = AlicptFTS.MIN_POS
@@ -260,28 +232,22 @@ class shell(Cmd):
         try:
             pos = float(paramList[0])
         except ValueError:
-            print('*****Position must be a float')
+            print('***** Position must be a float')
             return 
         if(pos < min_pos or pos > max_pos):
-            print('*****Position not within range')
+            print('***** Position not within range')
             return 
         
         try:
             angle = float(paramList[1])
         except ValueError:
-            print('*****Angle must be a float')
+            print('***** Angle must be a float')
 
         self.fts.configure(pos, angle)
 
     @_checkInit
     def do_FTSstatus(self,par):
         '''Check the status of XPS'''
-        '''
-        if(self.fts is None):
-            print('*****FTS not yet initialized!')
-            return
-        '''
-
         self.fts.status()
 
     @parser()
@@ -294,12 +260,6 @@ class shell(Cmd):
         Scanning velocity can be changed in FTSsettings, where the stagename is ML (moving linear)
         If the filename is specified, the scanning saves the stage positions into the file. Otherwise, the
             information is saved in scan_range_[min]_[max]__configure_[pos]_[angle].dat
-        '''
-
-        '''
-        if(self.fts is None):
-            print('*****FTS not yet initialized!')
-            return 
         '''
 
         if (len(paramList)<3 or len(paramList)>4):
@@ -333,10 +293,6 @@ class shell(Cmd):
             filename = paramList[3]
         self.fts.scan(repeat=n_repeat, scan_range=scan_range, filename=filename)
 
-
-
-
-
     ## Remove unwant undoc commands
     do_EOF = do_exit
     __hidden = ('do_EOF','do_testType')
@@ -347,7 +303,7 @@ class shell(Cmd):
 
 ## Laptop
 class clientShell(shell):
-    DEFAULT_TIMEOUT = 60
+    DEFAULT_TIMEOUT = 6
     def __init__(self):
         super().__init__()
         self.intro = '####### Interactive Client Shell #######'
@@ -410,7 +366,7 @@ class clientShell(shell):
             print('Connection reset')
             return 
 
-        codeOut = self.clientSocket.recv(self.BUFFER_SIZE)
+        codeOut = self.clientSocket.recv(shell.BUFFER_SIZE)
         print(codeOut)
         out, err = pickle.loads(codeOut)  ## decode output list
         if (out): print(out,end='')
@@ -454,9 +410,13 @@ class serverShell(shell):
         except socket.error as e:
             print("Fail to bind", e,file=sys.stderr)
             return 
-
+        
         # recieve message from client
-        self.clientSocket, client_address = self.socket.accept()
+        try:
+            self.clientSocket, client_address = self.socket.accept()
+        except socket.timeout:
+            print('Connection timed out after ' + str(shell.DEFAULT_TIMEOUT) + ' seconds.')
+            return 
         print(f"Bind to {client_address[0]}:{client_address[1]}")
 
         # if connect
@@ -464,9 +424,9 @@ class serverShell(shell):
         print("STATUS: connect to machine: ", cwd)
         self.clientSocket.send(socket.gethostname().encode())
         self.prompt = 'FTScmd> '
-        
+
     def receive_command(self):
-        command = self.socket.recv(self.BUFFER_SIZE).decode()
+        command = self.socket.recv(shell.BUFFER_SIZE).decode()
         print('Command received: ' + str(command))
         out,err = self.run_command(self.onecmd,command)
         codeOut = pickle.dumps([out,err])  ## encode the output list
