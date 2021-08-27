@@ -394,34 +394,28 @@ class clientShell(shell):
             print('Connection not ready')
         except ConnectionResetError:
             print('Connection not reset, try again')
-
-    def receive_command(self):
-        command = self.socket.recv(self.BUFFER_SIZE).decode()
-        print('Command received: ' + str(command))
-        out,err = self.run_command(self.onecmd,command)
-        codeOut = pickle.dumps([out,err])  ## encode the output list
-        self.socket.send(codeOut)
-        print('Command completed')
     
-    def do_wait(self,par):
-        '''press CTRL+D to stop receiving'''
-        
-        EXIT = 'q'
-        print('Press ' + str(EXIT) +  ' to exit loop')
-        print('Waiting for the command...')
-        timeout = 1
-        self.socket.settimeout(timeout)
-        waiting = True 
+    def do_send(self,par):
+        if(len(par) < 1):
+            print("Nothing is sent")
+            return 
+        print('Sending params: ' + str(par))
+        try:
+            self.clientSocket.send(par.encode())
+        except AttributeError as e:
+            print('Error when sending command', par,file=sys.stderr)
+            print(e)
+            return 
+        except ConnectionResetError:
+            print('Connection reset')
+            return 
 
-        while (waiting):
-            try:
-                self.receive_command()
-            except socket.timeout:
-                pass
-            pressed_key = raw_input_with_timeout(timeout=timeout)
-            if(pressed_key == EXIT):
-                waiting = False
-        
+        codeOut = self.clientSocket.recv(self.BUFFER_SIZE)
+        print(codeOut)
+        out, err = pickle.loads(codeOut)  ## decode output list
+        if (out): print(out,end='')
+        if (err): print(err,file=sys.stderr,end='')
+    
 
             
 
@@ -470,30 +464,37 @@ class serverShell(shell):
         print("STATUS: connect to machine: ", cwd)
         self.clientSocket.send(socket.gethostname().encode())
         self.prompt = 'FTScmd> '
+        
+    def receive_command(self):
+        command = self.socket.recv(self.BUFFER_SIZE).decode()
+        print('Command received: ' + str(command))
+        out,err = self.run_command(self.onecmd,command)
+        codeOut = pickle.dumps([out,err])  ## encode the output list
+        self.socket.send(codeOut)
+        print('Command completed')
+    
+    def do_wait(self,par):
+        '''press CTRL+D to stop receiving'''
+        
+        EXIT = 'q'
+        print('Press ' + str(EXIT) +  ' to exit loop')
+        print('Waiting for the command...')
+        timeout = 1
+        self.socket.settimeout(timeout)
+        waiting = True 
 
+        while (waiting):
+            try:
+                self.receive_command()
+            except socket.timeout:
+                pass
+            pressed_key = raw_input_with_timeout(timeout=timeout)
+            if(pressed_key == EXIT):
+                waiting = False
+        
     def do_close(self, par):
         self.socket.close()
 
-    def do_send(self,par):
-        if(len(par) < 1):
-            print("Nothing is sent")
-            return 
-        print('Sending params: ' + str(par))
-        try:
-            self.clientSocket.send(par.encode())
-        except AttributeError as e:
-            print('Error when sending command', par,file=sys.stderr)
-            print(e)
-            return 
-        except ConnectionResetError:
-            print('Connection reset')
-            return 
-
-        codeOut = self.clientSocket.recv(self.BUFFER_SIZE)
-        print(codeOut)
-        out, err = pickle.loads(codeOut)  ## decode output list
-        if (out): print(out,end='')
-        if (err): print(err,file=sys.stderr,end='')
 
 
 if __name__ == '__main__':
