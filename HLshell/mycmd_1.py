@@ -365,7 +365,7 @@ class clientShell(shell):
             return 
         print('Sending params: ' + str(par))
         try:
-            self.clientSocket.send(par.encode())
+            self.socket.send(par.encode())
         except AttributeError as e:
             print_error('Error when sending command:' + str(par))
             print(e)
@@ -374,7 +374,7 @@ class clientShell(shell):
             print_error('Connection reset')
             return 
 
-        codeOut = self.clientSocket.recv(shell.BUFFER_SIZE)
+        codeOut = self.socket.recv(shell.BUFFER_SIZE)
         print(codeOut)
         out, err = pickle.loads(codeOut)  ## decode output list
         if (out): print(out,end='')
@@ -398,20 +398,29 @@ class serverShell(shell):
         #print('Open Server Shell')
 
     def do_connect(self,par):
-        '''connect [port=81]'''
+        '''connect [port=81 timeout=30 seconds]'''
         #print('Type the port used to connect. Press ENTER to use default setting')
-        try:
-            self.port = int(par)
-            print('Connect by port ', int(par))
-        except:  # default setting, port = 81
-            self.port = self._DEFAULTPORT()
-            print('Use default setting: port ', self.port)
+        if(len(par)>0):
+            try:
+                self.port = int(par[0])
+                print('Connect by port ', int(par))
+            except:  # default setting, port = 81
+                self.port = self._DEFAULTPORT()
+                print('Use default setting: port ', self.port)
+        if(len(par) == 2):
+            try:
+                timeout = float(par[1])
+            except:
+                timeout = shell.DEFAULT_TIMEOUT
+        else:
+            timeout = shell.DEFAULT_TIMEOUT
+        print('Will wait for connection request for ' + str(timeout) + ' seconds') 
 
         try:
             #ip = '127.0.0.1'
             self.socket = socket.socket()
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.socket.settimeout(shell.DEFAULT_TIMEOUT)
+            self.socket.settimeout(timeout)
             self.socket.bind(('', self.port))
             self.socket.listen(5)
 
@@ -423,7 +432,7 @@ class serverShell(shell):
         try:
             self.clientSocket, client_address = self.socket.accept()
         except socket.timeout:
-            print_error('Connection timed out after ' + str(shell.DEFAULT_TIMEOUT) + ' seconds.')
+            print_error('Connection timed out after ' + str(timeout) + ' seconds.')
             return 
         print(f"Bind to {client_address[0]}:{client_address[1]}")
 
