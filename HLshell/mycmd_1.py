@@ -375,15 +375,16 @@ class clientShell(shell):
             return 
 
         try:
-            codeOut = self.socket.recv(shell.BUFFER_SIZE)
+            cmd_received = self.socket.recv(shell.BUFFER_SIZE)
         except socket.timeout:
             print_error('Connection timed out')
             print_error('Is the server receiving commands?')
             return 
-        print(codeOut)
+        print(cmd_received)
+        codeOut = self.socket.recv(shell.BUFFER_SIZE)
         out, err = pickle.loads(codeOut)  ## decode output list
-        if (out): print(out,end='')
-        if (err): print(err,file=sys.stderr,end='')
+        if (out): print(out)
+        if (err): print_error(err)
     
 
             
@@ -447,36 +448,41 @@ class serverShell(shell):
         self.clientSocket.send(socket.gethostname().encode())
         self.prompt = 'FTScmd> '
 
-    def receive_command(self, timeout):
-        self.socket.settimeout(timeout)
+    def receive_command(self, timeout, exit='q'):
+        self.clientSocket.settimeout(timeout)
         while(self.waiting_for_cmd):
             try:
-                command = self.socket.recv(shell.BUFFER_SIZE).decode()
+                command = self.clientSocket.recv(shell.BUFFER_SIZE).decode()
             except socket.timeout:
                 continue 
             print('Command received: ' + str(command))
+            cmd_received = pickle.dumps(['Command Received', None])
+            self.clientSocket.send(cmd_received)
+
             out,err = self.run_command(self.onecmd,command)
             codeOut = pickle.dumps([out,err])  ## encode the output list
-            self.socket.send(codeOut)
+            self.clientSocket.send(codeOut)
             print('Command completed')
+            print('Press ' + str(EXIT) +  ' to exit loop')
+            print('Waiting for the command...')
     
     def do_wait(self,par):
         '''wait [refresh_time]'''
         
         EXIT = 'q'
-        print('Press ' + str(EXIT) +  ' to exit loop')
-        print('Waiting for the command...')
         refresh = 1
-        if(len(par) == 1):
-            try:
-                refresh = float(par[0])
-            except ValueError:
-                print_error('Refresh rate must be a float')
-                return 
+        try:
+            refresh = float(par)
+        except ValueError:
+            print_error('Refresh rate must be a float')
+            return 
 
         pressed_key = ''
         self.waiting_for_cmd = True 
-        wait_thread = threading.Thread(target=self.receive_command, args=[refresh])
+        wait_thread = threading.Thread(target=self.receive_command, args=[refresh, EXIT])
+        
+        print('Press ' + str(EXIT) +  ' to exit loop')
+        print('Waiting for the command...')
         while (self.waiting_for_cmd):
             if(not wait_thread.is_alive()):
                 wait_thread.start()
@@ -484,7 +490,7 @@ class serverShell(shell):
                 pressed_key = msvcrt.getwch()
             if(pressed_key == EXIT):
                 self.waiting_for_cmd = False
-        print('Done waiting for command')
+        print('Done receiving commands')
 
     def do_close(self, par):
         self.socket.close()
