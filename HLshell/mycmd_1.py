@@ -20,6 +20,9 @@ import threading
 from alicptfts import AlicptFTS
 
 
+def print_error(error_prompt, wrapper='*****'):
+    print(str(wrapper) + ' ' + str(error_prompt) + ' ' + str(wrapper), file=sys.stderr)
+
 def toNum(x):
     try:
         return int(x)
@@ -75,12 +78,13 @@ class shell(Cmd):
         def wrapper(*params,**kargs):
             try:
                 if (params[0].fts is None):  ## params[0] = self
-                    print('***** FTS is not yet initialized!',file=sys.stderr)
+                    print_error('FTS is not yet initialized!')
+                    print_error('Did you mean to send the command instead?')
                 else:  ## Connect
                     return func(*params,**kargs)
             except:
                 ''' len(params)==0 '''
-                print('No parameters entered')
+                print_error('No parameters entered')
 
         return wrapper
 
@@ -113,7 +117,7 @@ class shell(Cmd):
         if inp == 'exit' or inp == 'qqq':
             return self.do_exit(None)
         else:
-            print("Command Not Found:", inp.split(' ')[0], file=sys.stderr)
+            print_error("Command Not Found:" + inp.split(' ')[0])
 
     def run_cmdbase(self,func,line):
         re = self.onecmd(line)
@@ -127,14 +131,14 @@ class shell(Cmd):
         try:
             func(line)
         except:
-            print('Error: ' + func.__name__ + '('+line+')',file=sys.stderr)
+            print_error('Error: ' + func.__name__ + '('+line+')')
 
         sys.stdout = sys.__stdout__
         sys.stderr = sys.__stderr__
         out = temp_out.getvalue()
         err = temp_err.getvalue()
         if (out): print(out, end='')
-        if (err): print(err, file=sys.stderr, end='')
+        if (err): print_error(err)
         return out, err
 
     @parser()
@@ -149,8 +153,8 @@ class shell(Cmd):
         '''
 
         if (len(paramList)!=3):
-            print('***** Require 3 parameters')
-            print('***** FTSsettings stagename velocity acceleration')
+            print_error('Require 3 parameters')
+            print_error('FTSsettings stagename velocity acceleration')
             return 
 
         MAX_VEL = AlicptFTS.MAX_VEL
@@ -171,7 +175,7 @@ class shell(Cmd):
             stagename = 'MovingLinear'
         
         else:
-            print('***** Requires stagename to be either PL, PR, or ML ' +
+            print_error('Requires stagename to be either PL, PR, or ML ' +
                 '(pointing linear, pointing rotary, or moving linear)')
             return 
 
@@ -179,15 +183,15 @@ class shell(Cmd):
             velocity = float(paramList[1])
             acceleration = float(paramList[2])
         except ValueError:
-            print('***** Velocity and acceleration must be floats')
+            print_error('Velocity and acceleration must be floats')
             return
 
         if (velocity < min_vel or velocity > MAX_VEL):
-            print('***** Velocity not in allowed range')
+            print_error('Velocity not in allowed range')
             return 
 
         if (acceleration < min_accel or acceleration > MAX_ACC):
-            print('***** Acceleration not in allowed range')
+            print_error('Acceleration not in allowed range')
             return 
 
         self.fts.set_motion_params(stagename, [velocity, acceleration])
@@ -202,16 +206,18 @@ class shell(Cmd):
         if (not self.fts): self.fts = AlicptFTS()
 
         if (len(paramList)!=3):
-            print('***** Require 3 parameters')
-            print('***** FTSinit IP username password')
+            print_error('Require 3 parameters')
+            print_error('FTSinit IP username password')
         else:
             try:
                 self.fts.initialize(paramList[0],paramList[1],paramList[2])
                 print('Status: Finish FTS initialization')
             except TypeError:
-                print('IP(str) username(str) password(str)')
+                print_error('IP(str) username(str) password(str)')
             except AttributeError:
-                print('Connection failed')
+                print_error('Connection failed')
+                print_error('Did you mean to send the command instead?')
+
 
 
     @parser()
@@ -223,8 +229,8 @@ class shell(Cmd):
         Angle is in degrees. No range limit. Rotates the PR (pointing rotary) to desired angle.
         '''
         if (len(paramList) != 2):
-            print('***** Require 2 parameters')
-            print('***** FTSconfig pos angle ')
+            print_error('Require 2 parameters')
+            print_error('FTSconfig pos angle ')
             return 
 
         min_pos = AlicptFTS.MIN_POS
@@ -232,16 +238,16 @@ class shell(Cmd):
         try:
             pos = float(paramList[0])
         except ValueError:
-            print('***** Position must be a float')
+            print_error('Position must be a float')
             return 
         if(pos < min_pos or pos > max_pos):
-            print('***** Position not within range')
+            print_error('Position not within range')
             return 
         
         try:
             angle = float(paramList[1])
         except ValueError:
-            print('***** Angle must be a float')
+            print_error('Angle must be a float')
 
         self.fts.configure(pos, angle)
 
@@ -263,8 +269,8 @@ class shell(Cmd):
         '''
 
         if (len(paramList)<3 or len(paramList)>4):
-            print('*****Require 3 or 4 parameters')
-            print('*****FTSscan n_repeat scan_range_min scan_range_max filename(optional)')
+            print_error('Require 3 or 4 parameters')
+            print_error('FTSscan n_repeat scan_range_min scan_range_max filename(optional)')
             return
 
         min_scan = AlicptFTS.MIN_POS
@@ -272,20 +278,20 @@ class shell(Cmd):
         try:
             scan_range = (float(paramList[1]), float(paramList[2]))
         except ValueError:
-            print('*****Scan range must be input as floats')
+            print_error('Scan range must be input as floats')
             return
 
         if(scan_range[0] > scan_range[1]):
-            print('*****Min scan range must be smaller than max scan range')
+            print_error('Min scan range must be smaller than max scan range')
             return 
         elif(scan_range[0] < min_scan or scan_range[1] > max_scan):
-            print('*****Scan range not within range')
+            print_error('Scan range not within range')
             return
 
         try:
             n_repeat = int(paramList[0])
         except ValueError:
-            print('*****n_repeat must be an integer')
+            print_error('n_repeat must be an integer')
             return 
 
         filename = None
@@ -319,26 +325,26 @@ class clientShell(shell):
         '''connect IP [port=81]'''
 
         if (len(paramList) > 2 or len(paramList)==0):
-            print('Require 1 or 2 parameters')
+            print_error('Require 1 or 2 parameters')
             return 
         self.hostIP = paramList[0]
         if (len(paramList)==2 and paramList[1]>0):
             self.port = paramList[1]
         else:
             self.port = self._DEFAULTPORT()
-            if (len(paramList)==2): print('Second parameters (port) should be a number.\nUse default setting, port ', self._DEFAULTPORT())
+            if (len(paramList)==2): print_error('Second parameters (port) should be a number.\nUse default setting, port ', self._DEFAULTPORT())
         connect_timeout = 5
         self.socket.settimeout(connect_timeout)
         try:
             self.socket.connect((self.hostIP,self.port))
         except socket.error as msg:
-            print(msg)
+            print_error(msg)
             return 
         except TypeError:
-            print('Please enter a proper IP')
+            print_error('Please enter a proper IP')
             return 
         except socket.timeout:
-            print('Connection timed out after ' + str(connect_timeout) + ' seconds')
+            print_error('Connection timed out after ' + str(connect_timeout) + ' seconds')
             return 
         self.socket.settimeout(shell.DEFAULT_TIMEOUT)
         self.socket.sendall(socket.gethostname().encode())
@@ -347,23 +353,23 @@ class clientShell(shell):
             print("STATUS: connect to machine: ", cwd.decode())
             self.prompt = 'FTScmd> '
         except ConnectionAbortedError:
-            print('Connection not ready')
+            print_error('Connection not ready')
         except ConnectionResetError:
-            print('Connection not reset, try again')
+            print_error('Connection not reset, try again')
     
     def do_send(self,par):
         if(len(par) < 1):
-            print("Nothing is sent")
+            print_error("Nothing is sent")
             return 
         print('Sending params: ' + str(par))
         try:
             self.clientSocket.send(par.encode())
         except AttributeError as e:
-            print('Error when sending command', par,file=sys.stderr)
+            print_error('Error when sending command:' + str(par))
             print(e)
             return 
         except ConnectionResetError:
-            print('Connection reset')
+            print_error('Connection reset')
             return 
 
         codeOut = self.clientSocket.recv(shell.BUFFER_SIZE)
@@ -383,7 +389,7 @@ class serverShell(shell):
         self.prompt = 'cmd> '
         self.doRemote = True
         self.clientSocket = None
-
+        self.waiting_for_cmd = False
 
     def preloop(self):
         pass
@@ -408,14 +414,14 @@ class serverShell(shell):
             self.socket.listen(5)
 
         except socket.error as e:
-            print("Fail to bind", e,file=sys.stderr)
+            print_error("Fail to bind" + str(e))
             return 
         
         # recieve message from client
         try:
             self.clientSocket, client_address = self.socket.accept()
         except socket.timeout:
-            print('Connection timed out after ' + str(shell.DEFAULT_TIMEOUT) + ' seconds.')
+            print_error('Connection timed out after ' + str(shell.DEFAULT_TIMEOUT) + ' seconds.')
             return 
         print(f"Bind to {client_address[0]}:{client_address[1]}")
 
@@ -425,33 +431,45 @@ class serverShell(shell):
         self.clientSocket.send(socket.gethostname().encode())
         self.prompt = 'FTScmd> '
 
-    def receive_command(self):
-        command = self.socket.recv(shell.BUFFER_SIZE).decode()
-        print('Command received: ' + str(command))
-        out,err = self.run_command(self.onecmd,command)
-        codeOut = pickle.dumps([out,err])  ## encode the output list
-        self.socket.send(codeOut)
-        print('Command completed')
+    def receive_command(self, timeout):
+        self.socket.settimeout(timeout)
+        while(self.waiting_for_cmd):
+            try:
+                command = self.socket.recv(shell.BUFFER_SIZE).decode()
+            except socket.timeout:
+                continue 
+            print('Command received: ' + str(command))
+            out,err = self.run_command(self.onecmd,command)
+            codeOut = pickle.dumps([out,err])  ## encode the output list
+            self.socket.send(codeOut)
+            print('Command completed')
     
     def do_wait(self,par):
-        '''press CTRL+D to stop receiving'''
+        '''wait [refresh_time]'''
         
         EXIT = 'q'
         print('Press ' + str(EXIT) +  ' to exit loop')
         print('Waiting for the command...')
-        timeout = 1
-        self.socket.settimeout(timeout)
-        waiting = True 
-
-        while (waiting):
+        refresh = 1
+        if(len(par) == 1):
             try:
-                self.receive_command()
-            except socket.timeout:
-                pass
-            pressed_key = raw_input_with_timeout(timeout=timeout)
+                refresh = float(par[0])
+            except ValueError:
+                print_error('Refresh rate must be a float')
+                return 
+
+        pressed_key = ''
+        self.waiting_for_cmd = True 
+        wait_thread = threading.Thread(target=self.receive_command, args=[refresh])
+        while (self.waiting_for_cmd):
+            if(not wait_thread.is_alive()):
+                wait_thread.start()
+            if(msvcrt.kbhit()):
+                pressed_key = msvcrt.getwch()
             if(pressed_key == EXIT):
-                waiting = False
-        
+                self.waiting_for_cmd = False
+        print('Done waiting for command')
+
     def do_close(self, par):
         self.socket.close()
 
