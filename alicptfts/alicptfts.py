@@ -6,6 +6,7 @@ import argparse
 import ntplib
 import time
 import enum
+import numpy as np
 
 #import pandas as pd
 #import numpy as np
@@ -254,13 +255,13 @@ class AlicptFTS:
         max_range = AlicptFTS.MAX_POS - AlicptFTS.MIN_POS
         ## TODO explain these calculations
         
-        max_time_one_pass = calculate_time_one_pass(max_range, velocity, accel)
+        max_time_one_pass = self.calculate_time_one_pass(max_range, velocity, accel)
 
         s_range = scan_range[1] - scan_range[0]
         if(s_range < 0):
             s_range = s_range * -1
 
-        time_one_pass = calculate_time_one_pass(srange, velocity, accel)
+        time_one_pass = self.calculate_time_one_pass(s_range, velocity, accel)
 
         total_time = max_time_one_pass + 2*repeat * time_one_pass
         return total_time
