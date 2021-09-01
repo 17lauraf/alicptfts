@@ -44,14 +44,13 @@ def get_time_diff():
         return diff
 
     else: return None
-
 def get_multi_time_diff(num_trials):
     diffs = []
     for i in range(num_trials):
         diff = get_time_diff()
         diffs.append(diff)
 
-    return diffs 
+    return diffs
 
 def network_latency_test(output='timestamp.dat'):
     print(get_network_time())

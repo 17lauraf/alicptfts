@@ -8,12 +8,11 @@ import time
 import enum
 import math
 
-#import pandas as pd
 #import numpy as np
-#import matplotlib.pyplot as plt
+
 from datetime import datetime
 
-import posixpath
+
 print(" Current directory: " + str(os.getcwd()))
 # import System
 # from System import String
@@ -106,8 +105,7 @@ class AlicptFTS:
                 print('STATUS: Connected to XPS')
 
             except Exception:
-                print('ERROR: Cannot Connect to XPS')
-                raise AttributeError('Cannot connect to XPS')
+                raise AttributeError('ERROR: Cannot Connect to XPS')
 
         else:                           # From a reboot
             try:
@@ -189,7 +187,7 @@ class AlicptFTS:
                                                     [str(run)], [str(servo_cycle)], ['0'], ['0'])
         self.newportxps.check_error(err, msg='GatherConfigSet')
         if verbose:
-            print( "    Gather Run Set: " + str( ret))
+            print( "   Gather Run Set: " + str( ret))
         return 
 
     def gather_data_setup(self, gather_time, gather_resolution, gather_params, socket=0):
@@ -204,7 +202,7 @@ class AlicptFTS:
         start_group = gather_params[0]
         tlist = start_group.split('.')
         trigger_start_group = '.'.join(tlist[:2])
-        print('    Group being moved for ' + str(gather_time) + ' seconds: ' + str(trigger_start_group))
+        print(' Group being moved for ' + str(gather_time) + ' seconds: ' + str(trigger_start_group))
 
         self.newportxps._xps.GatheringConfigurationSet(socket, gather_params)
         self.set_trigger_start(trigger_start_group, verbose=True)
@@ -265,13 +263,8 @@ class AlicptFTS:
 
         time_one_pass = self.calculate_time_one_pass(s_range, velocity, accel)
 
-        total_time = max_time_one_pass + 2*repeat * time_one_pass
+        total_time = max_time_one_pass + 2 * repeat * time_one_pass
         return total_time
-
-
-        
-
-
 
     def perform_movement(self, trigger_start_group, scan_range, repeat, velocity=None, accel=None, socket=0):
         """
@@ -604,6 +597,7 @@ class AlicptFTS:
             print('    Current number of chunks ' + str(nchunks))
             ret, _ = self.newportxps._xps.GatheringDataMultipleLinesGet(socket, 0, int(num_lines))
             print('    Current number of lines ' + str(num_lines))
+            # Did not successfully return all lines
             if(ret < 0):
                 nchunks *= 1.5
                 num_lines = total_lines/nchunks 

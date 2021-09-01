@@ -1,7 +1,5 @@
 #!/usr/bin/env python
-
-import sys
-import os
+import sys, os
 import pickle
 import time
 sys.path.append(r'../alicptfts')
@@ -19,9 +17,6 @@ import threading
 
 from alicptfts import AlicptFTS
 
-
-def print_error(error_prompt, wrapper='*****'):
-    print(str(wrapper) + ' ' + str(error_prompt) + ' ' + str(wrapper), file=sys.stderr)
 
 def toNum(x):
     try:
@@ -52,6 +47,13 @@ def parser(convertNum=True):
         return wrapper
     return parser_base
 
+
+def print_err(*err, wrapper='*****',sep=' ', end='\n', file=sys.stderr, flush=False):
+    print(str(wrapper) + ' ', file=file,end='')
+    print(*err, file=file,end='',sep=sep)
+    print(' ' + str(wrapper), file=file, flush=flush,end=end)
+
+
 class shell(Cmd):
     DEFAULT_TIMEOUT = 30
     BUFFER_SIZE = 1024 * 128
@@ -75,17 +77,20 @@ class shell(Cmd):
 
     def _checkInit(func):
         @wraps(func)
-        def wrapper(*params,**kargs):
+        def wrapper(self, *params, **kargs):
             try:
-                if (params[0].fts is None):  ## params[0] = self
-                    print_error('FTS is not yet initialized!')
-                    print_error('Did you mean to send the command instead?')
+                if (self.fts is None):
+                    print_err('FTS is not yet initialized!')
+                    print_err('Did you mean to send the command instead?')
+                    return lambda *params, **kargs: None
+                elif (self.fts.state == FTSState.NOTINIT):
+                    print_err('FTS initialization failed!')
+                    return lambda *params, **kargs: None
                 else:  ## Connect
-                    return func(*params,**kargs)
+                    return func(self,*params,**kargs)
             except Exception as e:
                 ''' len(params)==0 '''
-                print_error(e)
-                print_error('No parameters entered')
+                raise Exception('No parameters entered',e)
 
         return wrapper
 
@@ -102,7 +107,7 @@ class shell(Cmd):
     ## use for test
     def do_print(self,par):
         '''print any argument you want'''
-        print('"print" command does nothing\narg: ',par)
+        print('"print" command is used for test\narg: ',par)
 
     def _DEFAULTPORT(self):
         return 81
@@ -116,10 +121,10 @@ class shell(Cmd):
         print('type exit or q to leave')
 
     def default(self, inp):
-        if inp == 'exit' or bool(match(inp,'qqq+')):
-            return self.do_exit(None)
+        if inp == 'q' or bool(match(inp,'qqq+')):
+            return self.do_exit(inp)
         else:
-            print_error("Command Not Found:" + inp.split(' ')[0])
+            print_err("Command Not Found:", inp.split(' ')[0])
 
     def run_cmdbase(self,func,line):
         re = self.onecmd(line)
@@ -130,17 +135,18 @@ class shell(Cmd):
         temp_err = StringIO()
         sys.stdout = temp_out
         sys.stderr = temp_err
+
         try:
             func(line)
         except:
-            print_error('Error: ' + func.__name__ + '('+line+')')
+            print_err('Error: ' + func.__name__ + '('+line+')')
 
         sys.stdout = sys.__stdout__
         sys.stderr = sys.__stderr__
         out = temp_out.getvalue()
         err = temp_err.getvalue()
         if (out): print(out, end='')
-        if (err): print_error(err)
+        if (err): print_err(err)
         return out, err
 
     @parser()
@@ -155,9 +161,9 @@ class shell(Cmd):
         '''
 
         if (len(paramList)!=3):
-            print_error('Require 3 parameters')
-            print_error('FTSsettings stagename velocity acceleration')
-            return 
+            print_err('Require 3 parameters')
+            print_err('FTSsettings stagename velocity acceleration')
+            return
 
         MAX_VEL = AlicptFTS.MAX_VEL
         MAX_ACC = AlicptFTS.MAX_ACCEL
@@ -177,24 +183,24 @@ class shell(Cmd):
             stagename = 'MovingLinear'
         
         else:
-            print_error('Requires stagename to be either PL, PR, or ML ' +
+            print_err('Requires stagename to be either PL, PR, or ML ' +
                 '(pointing linear, pointing rotary, or moving linear)')
-            return 
+            return
 
         try:
             velocity = float(paramList[1])
             acceleration = float(paramList[2])
         except ValueError:
-            print_error('Velocity and acceleration must be floats')
+            print_err('Velocity and acceleration must be float')
             return
 
         if (velocity < min_vel or velocity > MAX_VEL):
-            print_error('Velocity not in allowed range')
-            return 
+            print_err('Velocity is not in allowed range')
+            return
 
         if (acceleration < min_accel or acceleration > MAX_ACC):
-            print_error('Acceleration not in allowed range')
-            return 
+            print_err('Acceleration is not in allowed range')
+            return
 
         self.fts.set_motion_params(stagename, [velocity, acceleration])
 
@@ -208,17 +214,24 @@ class shell(Cmd):
         if (not self.fts): self.fts = AlicptFTS()
 
         if (len(paramList)!=3):
-            print_error('Require 3 parameters')
-            print_error('FTSinit IP username password')
-        else:
-            try:
-                self.fts.initialize(paramList[0],paramList[1],paramList[2])
-                print('Status: Finish FTS initialization')
-            except TypeError:
-                print_error('IP(str) username(str) password(str)')
-            except AttributeError:
-                print_error('Connection failed')
-                print_error('Did you mean to send the command instead?')
+            print_err('Require 3 parameters')
+            print_err('FTSinit IP username password')
+            return
+
+
+        try:
+            self.fts.initialize(paramList[0],paramList[1],paramList[2])
+            print('Status: Finish FTS initialization')
+
+        except TypeError:
+            print_err('FTSinit IP(str) username(str) password(str)')
+            return
+
+        except:
+            print_err('Connection failed')
+            print_err('Did you mean to send the command instead?')
+            return
+
 
 
 
@@ -231,25 +244,26 @@ class shell(Cmd):
         Angle is in degrees. No range limit. Rotates the PR (pointing rotary) to desired angle.
         '''
         if (len(paramList) != 2):
-            print_error('Require 2 parameters')
-            print_error('FTSconfig pos angle ')
-            return 
+            print_err('Require 2 parameters')
+            print_err('FTSconfig pos angle ')
+            return
 
         min_pos = AlicptFTS.MIN_POS
         max_pos = AlicptFTS.MAX_POS
         try:
             pos = float(paramList[0])
         except ValueError:
-            print_error('Position must be a float')
-            return 
+            print_err('Position must be a float')
+            return
         if(pos < min_pos or pos > max_pos):
-            print_error('Position not within range')
-            return 
+            print_err('Position is not in tne range')
+            return
         
         try:
             angle = float(paramList[1])
-        except ValueError:
-            print_error('Angle must be a float')
+        except ValueError as e:
+            print_err('Angle must be a float')
+            return
 
         self.fts.configure(pos, angle)
 
@@ -271,8 +285,8 @@ class shell(Cmd):
         '''
 
         if (len(paramList)<3 or len(paramList)>4):
-            print_error('Require 3 or 4 parameters')
-            print_error('FTSscan n_repeat scan_range_min scan_range_max filename(optional)')
+            print_err('Require 3 or 4 parameters')
+            print_err('FTSscan n_repeat scan_range_min scan_range_max filename(optional)')
             return
 
         min_scan = AlicptFTS.MIN_POS
@@ -280,21 +294,23 @@ class shell(Cmd):
         try:
             scan_range = (float(paramList[1]), float(paramList[2]))
         except ValueError:
-            print_error('Scan range must be input as floats')
+            print_err('Scan range must be input as floats')
             return
 
         if(scan_range[0] > scan_range[1]):
-            print_error('Min scan range must be smaller than max scan range')
-            return 
-        elif(scan_range[0] < min_scan or scan_range[1] > max_scan):
-            print_error('Scan range not within range')
+            scan_range[0], scan_range[1] = scan_range[1], scan_range[0]
+            #print('*****Min scan range must be smaller than max scan range')
+
+
+        if(scan_range[0] < min_scan or scan_range[1] > max_scan):
+            print_err('Scan range not within range')
             return
 
         try:
             n_repeat = int(paramList[0])
         except ValueError:
-            print_error('n_repeat must be an integer')
-            return 
+            print_err('n_repeat must be an integer')
+            return
 
         filename = None
         if(len(paramList) == 4):
@@ -327,26 +343,27 @@ class clientShell(shell):
         '''connect IP [port=81]'''
 
         if (len(paramList) > 2 or len(paramList)==0):
-            print_error('Require 1 or 2 parameters')
-            return 
+            print_err('Require 1 or 2 parameters')
+            return
+
         self.hostIP = paramList[0]
         if (len(paramList)==2 and paramList[1]>0):
             self.port = paramList[1]
         else:
             self.port = self._DEFAULTPORT()
-            if (len(paramList)==2): print_error('Second parameters (port) should be a number.\nUse default setting, port ', self._DEFAULTPORT())
+            if (len(paramList)==2): print_err('Second parameters (port) should be a number.\nUse default setting, port ', self._DEFAULTPORT())
         connect_timeout = 5
         self.socket.settimeout(connect_timeout)
         try:
             self.socket.connect((self.hostIP,self.port))
         except socket.error as msg:
-            print_error(msg)
+            print_err(msg)
             return 
         except TypeError:
-            print_error('Please enter a proper IP')
+            print_err('Please enter a proper IP')
             return 
         except socket.timeout:
-            print_error('Connection timed out after ' + str(connect_timeout) + ' seconds')
+            print_err('Connection timed out after ' + str(connect_timeout) + ' seconds')
             return 
         self.socket.settimeout(shell.DEFAULT_TIMEOUT)
         self.socket.sendall(socket.gethostname().encode())
@@ -355,43 +372,56 @@ class clientShell(shell):
             print("STATUS: connect to machine: ", cwd.decode())
             self.prompt = 'FTScmd> '
         except ConnectionAbortedError:
-            print_error('Connection not ready')
+            print_err('Connection not ready')
         except ConnectionResetError:
-            print_error('Connection not reset, try again')
+            print_err('Connection not reset, try again')
     
     def do_send(self,par):
         '''send [any other command to the server]'''
         if(len(par) < 1):
-            print_error("No command sent")
+            print_err("No command sent")
             return 
         print('Sending params: ' + str(par))
         try:
             self.socket.send(par.encode())
         except AttributeError as e:
-            print_error('Error when sending command:' + str(par))
+            print_err('Error when sending command:' + str(par))
             print(e)
             return 
         except ConnectionResetError:
-            print_error('Connection reset')
+            print_err('Connection reset')
             return 
 
         try:
             cmd_received = self.socket.recv(shell.BUFFER_SIZE)
         except socket.timeout:
-            print_error('Connection timed out')
-            print_error('Is the server receiving commands?')
+            print_err('Connection timed out')
+            print_err('Is the server receiving commands?')
             return 
         out, err = pickle.loads(cmd_received)
         if (out): print(out)
-        if (err): print_error(err)
+        if (err): print_err(err)
 
         self.socket.settimeout(None)
         codeOut = self.socket.recv(shell.BUFFER_SIZE) ## might be a long command
         self.socket.settimeout(shell.DEFAULT_TIMEOUT)
         out, err = pickle.loads(codeOut)  ## decode output list
         if (out): print(out)
-        if (err): print_error(err)
+        if (err): print_err(err)
     
+    def do_wait(self,par):
+        '''press CTRL+C to stop receiving'''
+        print('Waiting for the command...')
+        print('press CTRL+C to stop receiving')
+        try:
+            while True:
+                command = self.socket.recv(self.BUFFER_SIZE).decode()
+                print('Received command: ', command)
+                out,err = self.run_command(self.onecmd,command)
+                codeOut = pickle.dumps([out,err])  ## encode the output list
+                self.socket.send(codeOut)
+        except KeyboardInterrupt:
+            print('Stop Receiving')
 
             
 
@@ -419,8 +449,8 @@ class serverShell(shell):
                 print('Connect by port ', self.port)
             except Exception as e:  # default setting, port = 81
                 self.port = self._DEFAULTPORT()
-                print_error(e)
-                print_error('Using default setting: port ', self.port)
+                print_err(e)
+                print_err('Using default setting: port ', self.port)
         if(len(par) == 2):
             try:
                 timeout = float(par[1])
@@ -439,14 +469,14 @@ class serverShell(shell):
             self.socket.listen(5)
 
         except socket.error as e:
-            print_error("Fail to bind" + str(e))
+            print_err("Fail to bind" + str(e))
             return 
         
         # recieve message from client
         try:
             self.clientSocket, client_address = self.socket.accept()
         except socket.timeout:
-            print_error('Connection timed out after ' + str(timeout) + ' seconds.')
+            print_err('Connection timed out after ' + str(timeout) + ' seconds.')
             return 
         print(f"Bind to {client_address[0]}:{client_address[1]}")
 
@@ -460,7 +490,7 @@ class serverShell(shell):
         try:
             self.clientSocket.settimeout(timeout)
         except ConnectionAbortedError:
-            print_error('Connection lost. Please reconnect.')
+            print_err('Connection lost. Please reconnect.')
             self.waiting_for_cmd = False
             return 
 
@@ -488,7 +518,7 @@ class serverShell(shell):
         try:
             refresh = float(par)
         except ValueError:
-            print_error('Refresh rate must be a float, using default refresh time')
+            print_err('Refresh rate must be a float, using default refresh time')
             
 
         pressed_key = ''
@@ -511,30 +541,39 @@ class serverShell(shell):
     def do_close(self, par):
         self.socket.close()
 
+        codeOut = self.clientSocket.recv(self.BUFFER_SIZE)
+        out, err = pickle.loads(codeOut)  ## decode output list
+        if (out): print(out,end='')
+        if (err): print(err,file=sys.stderr,end='')
 
 
 if __name__ == '__main__':
-    # header
-    # modes = ['Server','Client']
-    print("Choose Server or Client Mode")
-    print("Press 1 to Server and 2 to Client")
-    print("Press ENTER to run locally")
 
-    while True:
-        mode = input("Mode: ")
-        #mode = '1'
-        if (mode.isspace() or not mode):
-            mode = '0'
-            break
-        elif (mode.isdecimal()):
-            if (int(mode)>=0 or int(mode)<=2):
-                #print(f'Open {modes[int(mode)-1]} Shell')
+    pars = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
+    pars.add_argument("-m", "--mode", nargs='?', type=int, choices=[0, 1, 2],
+                      help='Choose modes\nMode 0: local run\nMode 1: server\nMode 2: client')
+    args = pars.parse_args()
+    mode = args.mode
+    if (mode is None):
+        print("Choose Server or Client Mode:")
+        print("Press 1 to Server and 2 to Client")
+        print("Press ENTER to run locally")
+        print("Press q to exit")
+
+        while True:
+            mode = input("Mode: ")
+            #mode = '2'
+            if (not mode or mode.isspace() ):
+                mode = '0'
                 break
-        elif mode == 'q' or bool(match(mode, 'qqq+')):
-            exit()
+            elif (mode.isdecimal()):
+                if (int(mode)>=0 or int(mode)<=2):
+                    #print(f'Open {modes[int(mode)-1]} Shell')
+                    break
+            elif mode == 'q' or bool(match(mode, 'qqq+')):
+                exit()
 
     if (int(mode)==1): serverShell().cmdloop()
     elif (int(mode)==2): clientShell().cmdloop()
     else: shell().cmdloop()
-
 
