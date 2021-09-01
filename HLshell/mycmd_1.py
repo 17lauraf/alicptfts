@@ -84,7 +84,7 @@ class shell(Cmd):
                     return func(*params,**kargs)
             except Exception as e:
                 ''' len(params)==0 '''
-                print(e)
+                print_error(e)
                 print_error('No parameters entered')
 
         return wrapper
@@ -113,10 +113,10 @@ class shell(Cmd):
         return True
 
     def help_exit(self):
-        print('type exit or qqq to leave')
+        print('type exit or q to leave')
 
     def default(self, inp):
-        if inp == 'exit' or inp == 'qqq':
+        if inp == 'exit' or bool(match(inp,'qqq+')):
             return self.do_exit(None)
         else:
             print_error("Command Not Found:" + inp.split(' ')[0])
@@ -409,16 +409,18 @@ class serverShell(shell):
         pass
         #print('Open Server Shell')
 
-    def do_connect(self,par):
+    @parser()
+    def do_connect(self,*par):
         '''connect [port=81 timeout=30 seconds]'''
         #print('Type the port used to connect. Press ENTER to use default setting')
         if(len(par)>0):
             try:
                 self.port = int(par[0])
-                print('Connect by port ', int(par))
-            except:  # default setting, port = 81
+                print('Connect by port ', self.port)
+            except Exception as e:  # default setting, port = 81
                 self.port = self._DEFAULTPORT()
-                print('Use default setting: port ', self.port)
+                print_error(e)
+                print_error('Using default setting: port ', self.port)
         if(len(par) == 2):
             try:
                 timeout = float(par[1])

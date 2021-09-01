@@ -6,7 +6,7 @@ import argparse
 import ntplib
 import time
 import enum
-import numpy as np
+import math
 
 #import pandas as pd
 #import numpy as np
@@ -236,10 +236,11 @@ class AlicptFTS:
         '''
         calculates the number of seconds it would take to move from 
         one end of range to the other end of range
+        TODO proper documentation
         '''
-        vf = np.sqrt(accel*max_range)
+        vf = float(math.sqrt(accel*max_range))
         if(vf < max_velocity):
-            max_time_one_pass = np.sqrt(max_range * 4 / accel)
+            max_time_one_pass = float(math.sqrt(max_range * 4. / accel))
         else: 
             max_time_one_pass = max_range / max_velocity + max_velocity / accel
         
@@ -249,6 +250,7 @@ class AlicptFTS:
     def calculate_gather_time(self, repeat, scan_range, velocity, accel, stage='Group1.Pos'):
         '''
         calculates the number of seconds it would take to perform a gather run
+        TODO proper documentation
         '''
         velocity, accel = self.newportxps.set_velocity(stage, velocity, accel)
         
@@ -592,7 +594,7 @@ class AlicptFTS:
         
         ret, msg = self.newportxps._xps.GatheringDataMultipleLinesGet(socket, 0, 1)
         num_entries = len(msg.split(';'))
-        print(num_entries)
+        print('Number of columns saved:' + str(num_entries))
         max_lines = max_entries / num_entries
         nchunks = int(total_lines/max_lines)+1
         num_lines = total_lines 
