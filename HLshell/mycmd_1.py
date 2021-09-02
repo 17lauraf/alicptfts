@@ -11,6 +11,7 @@ from re import match
 import socket
 from io import StringIO
 from functools import wraps
+import argparse
 
 import msvcrt
 import threading
@@ -55,7 +56,7 @@ def print_err(*err, wrapper='*****',sep=' ', end='\n', file=sys.stderr, flush=Fa
 
 
 class shell(Cmd):
-    DEFAULT_TIMEOUT = 30
+    DEFAULT_TIMEOUT = 5
     BUFFER_SIZE = 1024 * 128
     def __init__(self):
         ## Cmd
@@ -82,15 +83,13 @@ class shell(Cmd):
                 if (self.fts is None):
                     print_err('FTS is not yet initialized!')
                     print_err('Did you mean to send the command instead?')
-                    return lambda *params, **kargs: None
-                elif (self.fts.state == FTSState.NOTINIT):
-                    print_err('FTS initialization failed!')
-                    return lambda *params, **kargs: None
+                    return #lambda *params, **kargs: None
                 else:  ## Connect
                     return func(self,*params,**kargs)
             except Exception as e:
                 ''' len(params)==0 '''
-                raise Exception('No parameters entered',e)
+                ## Try not to kill the loop if possible
+                print_err('Error:',e)
 
         return wrapper
 
@@ -140,7 +139,6 @@ class shell(Cmd):
             func(line)
         except:
             print_err('Error: ' + func.__name__ + '('+line+')')
-
         sys.stdout = sys.__stdout__
         sys.stderr = sys.__stderr__
         out = temp_out.getvalue()
@@ -211,14 +209,14 @@ class shell(Cmd):
         This is required to initialize the NewportXPS machine before anything else is run.
         '''
 
-        if (not self.fts): self.fts = AlicptFTS()
+        
 
         if (len(paramList)!=3):
             print_err('Require 3 parameters')
             print_err('FTSinit IP username password')
             return
 
-
+        if (not self.fts): self.fts = AlicptFTS()
         try:
             self.fts.initialize(paramList[0],paramList[1],paramList[2])
             print('Status: Finish FTS initialization')
@@ -328,15 +326,49 @@ class shell(Cmd):
 ## Laptop
 class clientShell(shell):
     DEFAULT_TIMEOUT = 6
-    def __init__(self):
+    def __init__(self, ip):
         super().__init__()
         self.intro = '####### Interactive Client Shell #######'
         self.prompt = 'cmd> '
         self.doRemote = True
-        
+        self.server_ip = ip
+        self.connected = False 
+        self.is_connecting = False
+        self.waiting_for_cmd = False
+        self.debug_mode = False
+
     def preloop(self):
-        pass
-        #print('Open Client Shell')
+        '''Automatically connects and waits for commands'''
+       
+        pressed_key = '_'
+        EXIT = 'q'
+        self.is_connecting = False
+        while(not self.debug_mode):
+            connect_thread = threading.Thread(target=self.do_connect, args=[self.server_ip])
+        
+            if(msvcrt.kbhit()):
+                pressed_key = msvcrt.getwch()
+            if(pressed_key == EXIT):
+                self.debug_mode = True
+                break
+            if(self.connected):
+                self.do_wait(1)
+            else:
+                if(not self.is_connecting):
+                    self.is_connecting = True
+                    connect_thread.start()
+
+        print('Debug mode. Type "start" to continue receiving commands from server.')
+    
+    @parser()
+    def do_start(self, *par):
+        '''start [IP] 
+        
+        Start automatically receiving commands from server'''
+        self.debug_mode = False
+        if(len(par) > 0):
+            self.server_ip = par
+        self.preloop()
 
     @parser()
     def do_connect(self,*paramList):
@@ -344,6 +376,7 @@ class clientShell(shell):
 
         if (len(paramList) > 2 or len(paramList)==0):
             print_err('Require 1 or 2 parameters')
+            self.is_connecting = False
             return
 
         self.hostIP = paramList[0]
@@ -351,77 +384,99 @@ class clientShell(shell):
             self.port = paramList[1]
         else:
             self.port = self._DEFAULTPORT()
-            if (len(paramList)==2): print_err('Second parameters (port) should be a number.\nUse default setting, port ', self._DEFAULTPORT())
-        connect_timeout = 5
+            if (len(paramList)==2): 
+                print_err('Second parameters (port) should be a number.\nUse default setting, port ', self._DEFAULTPORT())
+        
+        connect_timeout = clientShell.DEFAULT_TIMEOUT
+        self.socket = socket.socket()
         self.socket.settimeout(connect_timeout)
+        print('Attempting to connect to ' + str(self.hostIP) + ':' + str(self.port))
         try:
             self.socket.connect((self.hostIP,self.port))
         except socket.error as msg:
+            print_err('Server is not receiving connections')
             print_err(msg)
+            self.is_connecting = False
             return 
         except TypeError:
             print_err('Please enter a proper IP')
+            self.is_connecting = False
             return 
         except socket.timeout:
             print_err('Connection timed out after ' + str(connect_timeout) + ' seconds')
+            self.is_connecting = False
             return 
+
         self.socket.settimeout(shell.DEFAULT_TIMEOUT)
         self.socket.sendall(socket.gethostname().encode())
+        
         try:
             cwd = self.socket.recv(1024)
             print("STATUS: connect to machine: ", cwd.decode())
             self.prompt = 'FTScmd> '
-        except ConnectionAbortedError:
-            print_err('Connection not ready')
-        except ConnectionResetError:
-            print_err('Connection not reset, try again')
-    
-    def do_send(self,par):
-        '''send [any other command to the server]'''
-        if(len(par) < 1):
-            print_err("No command sent")
+            self.connected = True
+        except (ConnectionAbortedError,ConnectionResetError) as e :
+            print_err('Connection not ready, try again')
+            self.is_connecting = False
             return 
-        print('Sending params: ' + str(par))
-        try:
-            self.socket.send(par.encode())
-        except AttributeError as e:
-            print_err('Error when sending command:' + str(par))
-            print(e)
-            return 
-        except ConnectionResetError:
-            print_err('Connection reset')
-            return 
-
-        try:
-            cmd_received = self.socket.recv(shell.BUFFER_SIZE)
         except socket.timeout:
-            print_err('Connection timed out')
-            print_err('Is the server receiving commands?')
+            print_err('Connection timed out after ' + str(connect_timeout) + ' seconds')
+            self.is_connecting = False
             return 
-        out, err = pickle.loads(cmd_received)
-        if (out): print(out)
-        if (err): print_err(err)
+        self.is_connecting = False
 
-        self.socket.settimeout(None)
-        codeOut = self.socket.recv(shell.BUFFER_SIZE) ## might be a long command
-        self.socket.settimeout(shell.DEFAULT_TIMEOUT)
-        out, err = pickle.loads(codeOut)  ## decode output list
-        if (out): print(out)
-        if (err): print_err(err)
-    
-    def do_wait(self,par):
-        '''press CTRL+C to stop receiving'''
-        print('Waiting for the command...')
-        print('press CTRL+C to stop receiving')
+    def receive_command(self, timeout, EXIT='q'):
         try:
-            while True:
-                command = self.socket.recv(self.BUFFER_SIZE).decode()
-                print('Received command: ', command)
+            self.socket.settimeout(timeout)
+            while(self.waiting_for_cmd):
+                try:
+                    command = self.socket.recv(shell.BUFFER_SIZE).decode()
+                except socket.timeout:
+                    continue 
+                print('Command received: ' + str(command))
+                cmd_received = pickle.dumps(['Command Received', None])
+                self.socket.send(cmd_received)
+
                 out,err = self.run_command(self.onecmd,command)
                 codeOut = pickle.dumps([out,err])  ## encode the output list
                 self.socket.send(codeOut)
-        except KeyboardInterrupt:
-            print('Stop Receiving')
+                print('Command completed')
+                print('Press ' + str(EXIT) +  ' to exit loop')
+                print('Waiting for the command...')
+        except (ConnectionAbortedError, ConnectionResetError):
+            print_err('Connection lost. Please reconnect.')
+            self.waiting_for_cmd = False
+            self.connected = False
+            return 
+
+    def do_wait(self,par):
+        '''wait [refresh_time]'''
+        self.debug_mode = False
+        EXIT = 'q'
+        refresh = 1
+        try:
+            refresh = float(par)
+        except ValueError:
+            print_err('Refresh rate must be a float, using default refresh time')
+            
+
+        pressed_key = ''
+        self.waiting_for_cmd = True 
+        wait_thread = threading.Thread(target=self.receive_command, args=[refresh, EXIT])
+        
+        print('Press ' + str(EXIT) +  ' to stop receiving commands and enter debug mode')
+        print('Waiting for command from server...')
+        
+        while (self.waiting_for_cmd):
+            if(not wait_thread.is_alive()):
+                wait_thread.start()
+            if(msvcrt.kbhit()):
+                pressed_key = msvcrt.getwch()
+            if(pressed_key == EXIT):
+                self.waiting_for_cmd = False
+                self.debug_mode = True
+ 
+        print('Done receiving commands')
 
             
 
@@ -433,7 +488,7 @@ class serverShell(shell):
         self.prompt = 'cmd> '
         self.doRemote = True
         self.clientSocket = None
-        self.waiting_for_cmd = False
+        
 
     def preloop(self):
         pass
@@ -486,62 +541,56 @@ class serverShell(shell):
         self.clientSocket.send(socket.gethostname().encode())
         self.prompt = 'FTScmd> '
 
-    def receive_command(self, timeout, EXIT='q'):
-        try:
-            self.clientSocket.settimeout(timeout)
-        except ConnectionAbortedError:
-            print_err('Connection lost. Please reconnect.')
-            self.waiting_for_cmd = False
+
+    def do_send(self,par):
+        '''send [any other command to the server]'''
+        if(len(par) < 1):
+            print_err("No command sent")
             return 
-
-        while(self.waiting_for_cmd):
-            try:
-                command = self.clientSocket.recv(shell.BUFFER_SIZE).decode()
-            except socket.timeout:
-                continue 
-            print('Command received: ' + str(command))
-            cmd_received = pickle.dumps(['Command Received', None])
-            self.clientSocket.send(cmd_received)
-
-            out,err = self.run_command(self.onecmd,command)
-            codeOut = pickle.dumps([out,err])  ## encode the output list
-            self.clientSocket.send(codeOut)
-            print('Command completed')
-            print('Press ' + str(EXIT) +  ' to exit loop')
-            print('Waiting for the command...')
-    
-    def do_wait(self,par):
-        '''wait [refresh_time]'''
-        
-        EXIT = 'q'
-        refresh = 1
+        print('Sending params: ' + str(par))
         try:
-            refresh = float(par)
-        except ValueError:
-            print_err('Refresh rate must be a float, using default refresh time')
+            try:
+                self.clientSocket.send(par.encode())
+        
+            except socket.timeout:
+                print_err('Connection timed out. Is the client connected?')
+                return 
+            print('Command sent to client')
+            try:
+                print('Client is receiving Command')
+                cmd_received = self.clientSocket.recv(shell.BUFFER_SIZE)
+            except socket.timeout:
+                print_err('Connection timed out')
+                print_err('Is the client receiving commands?')
+                return 
+    
+            out, err = pickle.loads(cmd_received)
+            if (out): print(out)
+            if (err): print(err)
             
+            print('Client is running command')
+            self.clientSocket.settimeout(None)
+            codeOut = self.clientSocket.recv(shell.BUFFER_SIZE) ## might be a long command
+            self.clientSocket.settimeout(shell.DEFAULT_TIMEOUT)
 
-        pressed_key = ''
-        self.waiting_for_cmd = True 
-        wait_thread = threading.Thread(target=self.receive_command, args=[refresh, EXIT])
-        
-        print('Press ' + str(EXIT) +  ' to stop receiving commands')
-        print('Waiting for command from client...')
-        
-        while (self.waiting_for_cmd):
-            if(not wait_thread.is_alive()):
-                wait_thread.start()
-            if(msvcrt.kbhit()):
-                pressed_key = msvcrt.getwch()
-            if(pressed_key == EXIT):
-                self.waiting_for_cmd = False
-        
-        print('Done receiving commands')
+            out, err = pickle.loads(codeOut)  ## decode output list
+            if (out): print(out)
+            if (err): print(err)
+            print('Command Complete')
+
+        except AttributeError as e:
+            print_err('Error when sending command:' + str(par))
+            print(e)
+            return 
+        except ConnectionResetError:
+            print_err('Connection reset')
+            return 
+  
 
     def do_close(self, par):
         self.socket.close()
 
-        codeOut = self.clientSocket.recv(self.BUFFER_SIZE)
+        codeOut = self.socket.recv(self.BUFFER_SIZE)
         out, err = pickle.loads(codeOut)  ## decode output list
         if (out): print(out,end='')
         if (err): print(err,file=sys.stderr,end='')
@@ -552,6 +601,7 @@ if __name__ == '__main__':
     pars = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
     pars.add_argument("-m", "--mode", nargs='?', type=int, choices=[0, 1, 2],
                       help='Choose modes\nMode 0: local run\nMode 1: server\nMode 2: client')
+    pars.add_argument('-i', '--ip', default='127.0.0.1', help='IP of the server')
     args = pars.parse_args()
     mode = args.mode
     if (mode is None):
@@ -573,7 +623,10 @@ if __name__ == '__main__':
             elif mode == 'q' or bool(match(mode, 'qqq+')):
                 exit()
 
-    if (int(mode)==1): serverShell().cmdloop()
-    elif (int(mode)==2): clientShell().cmdloop()
-    else: shell().cmdloop()
+    if (int(mode)==1): 
+        serverShell().cmdloop()
+    elif (int(mode)==2): 
+        clientShell(args.ip).cmdloop()
+    else: 
+        shell().cmdloop()
 
