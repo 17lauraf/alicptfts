@@ -332,7 +332,7 @@ class clientShell(shell):
         self.prompt = 'cmd> '
         self.doRemote = True
         self.server_ip = ip
-        self.connected = False 
+        self.is_connected = False 
         self.is_connecting = False
         self.waiting_for_cmd = False
         self.debug_mode = False
@@ -340,9 +340,24 @@ class clientShell(shell):
     def preloop(self):
         '''Automatically connects and waits for commands'''
        
+        self.do_start('')
+
+       
+    
+    @parser()
+    def do_start(self, *par):
+        '''start [IP] 
+        
+        Start automatically connecting and receiving commands from server'''
+        self.debug_mode = False
+        if(len(par) > 0):
+            self.server_ip = par
+
+        # I probably should've switched preloop and start
         pressed_key = '_'
         EXIT = 'q'
         self.is_connecting = False
+
         while(not self.debug_mode):
             connect_thread = threading.Thread(target=self.do_connect, args=[self.server_ip])
         
@@ -351,24 +366,17 @@ class clientShell(shell):
             if(pressed_key == EXIT):
                 self.debug_mode = True
                 break
-            if(self.connected):
+            # If connected, then wait for commands
+            if(self.is_connected):
                 self.do_wait(1)
             else:
-                if(not self.is_connecting):
+                # Continuously try to connect until is connected
+                # Do not start another thread if current thread is still running
+                # for some reason thread.is_alive() doesn't work here
+                if(not self.is_connecting and not self.is_connected):
                     self.is_connecting = True
                     connect_thread.start()
-
         print('Debug mode. Type "start" to continue receiving commands from server.')
-    
-    @parser()
-    def do_start(self, *par):
-        '''start [IP] 
-        
-        Start automatically receiving commands from server'''
-        self.debug_mode = False
-        if(len(par) > 0):
-            self.server_ip = par
-        self.preloop()
 
     @parser()
     def do_connect(self,*paramList):
@@ -395,7 +403,6 @@ class clientShell(shell):
             self.socket.connect((self.hostIP,self.port))
         except socket.error as msg:
             print_err('Server is not receiving connections')
-            print_err(msg)
             self.is_connecting = False
             return 
         except TypeError:
@@ -414,7 +421,7 @@ class clientShell(shell):
             cwd = self.socket.recv(1024)
             print("STATUS: connect to machine: ", cwd.decode())
             self.prompt = 'FTScmd> '
-            self.connected = True
+            self.is_connected = True
         except (ConnectionAbortedError,ConnectionResetError) as e :
             print_err('Connection not ready, try again')
             self.is_connecting = False
@@ -426,6 +433,11 @@ class clientShell(shell):
         self.is_connecting = False
 
     def receive_command(self, timeout, EXIT='q'):
+        '''
+        Waits for a command from the server every [timeout] seconds
+        If connection is lost in the middle of receiving a command,
+        then we exit the loop
+        '''
         try:
             self.socket.settimeout(timeout)
             while(self.waiting_for_cmd):
@@ -446,7 +458,7 @@ class clientShell(shell):
         except (ConnectionAbortedError, ConnectionResetError):
             print_err('Connection lost. Please reconnect.')
             self.waiting_for_cmd = False
-            self.connected = False
+            self.is_connected = False
             return 
 
     def do_wait(self,par):
@@ -468,8 +480,12 @@ class clientShell(shell):
         print('Waiting for command from server...')
         
         while (self.waiting_for_cmd):
+            
+            # waits for a command in the background
             if(not wait_thread.is_alive()):
                 wait_thread.start()
+
+            # if we EXIT, then stop waiting for commands
             if(msvcrt.kbhit()):
                 pressed_key = msvcrt.getwch()
             if(pressed_key == EXIT):
@@ -548,6 +564,7 @@ class serverShell(shell):
             print_err("No command sent")
             return 
         print('Sending params: ' + str(par))
+        self.clientSocket.settimeout(clientShell.DEFAULT_TIMEOUT)
         try:
             try:
                 self.clientSocket.send(par.encode())
